@@ -108,6 +108,7 @@
             }
             (async () => {
                 var tps = [];
+                var max_tx_count = 0;
                 var bigger_than_7 = [];
                 var tx_nums = [];
                 var hashes = [];
@@ -140,6 +141,7 @@
                     tx_nums.push( block_info[ "tx_count" ] );
                     var ind_tps = Math.round( block_info[ "tx_count" ] / 10 / 60 );
                     tps.push( ind_tps );
+                    if ( block_info[ "tx_count" ] > max_tx_count ) max_tx_count = block_info[ "tx_count" ];
                     if ( block_info[ "tx_count" ] > 4200 ) bigger_than_7.push( [ ind_tps, `https://${source}/block/${hash}`, block_info[ "tx_count" ] ] );
                     $( '.cur_load' ).innerText = num - ( tip - i - 1 );
                     if ( num - ( tip - i - 1 ) === num ) {
@@ -149,7 +151,7 @@
                 }
                 var max_tps_num = findMax( tps )[ 1 ];
                 var max_tps_blk = `https://${source}/block/${hashes[ findMax( tps )[ 0 ] ]}`;
-                $( '.most_tps' ).innerHTML = `<a href="${max_tps_blk}" target="_blank">This block</a> had ${max_tps_num} tps`;
+                $( '.most_tps' ).innerHTML = `<a href="${max_tps_blk}" target="_blank">this block</a> had ${max_tps_num} tps (${max_tx_count} transactions)`;
                 $( '.avg_tps' ).innerText = `${findAvg( tps )} tps`;
                 $( '.num_big' ).innerText = bigger_than_7.length;
                 var html = ``;
