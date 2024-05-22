@@ -113,10 +113,10 @@
                 var bigger_than_7 = [];
                 var tx_nums = [];
                 var hashes = [];
-                var tip = await getData( `https://${source}/api/blocks/tip/height` );
-                tip = Number( tip );
                 var num = blocks_to_count;
                 $( '.total_load' ).innerText = num;
+                var tip = await getData( `https://${source}/api/blocks/tip/height` );
+                tip = Number( tip );
                 var i; for ( i=tip-num; i<tip; i++ ) {
                     try {
                         var hash = await getData( `https://${source}/api/block-height/${i}` );
