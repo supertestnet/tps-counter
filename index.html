@@ -139,7 +139,7 @@
                     }
                     if ( stop ) continue;
                     tx_nums.push( block_info[ "tx_count" ] );
-                    var ind_tps = Math.round( block_info[ "tx_count" ] / 10 / 60 );
+                    var ind_tps = Number( ( block_info[ "tx_count" ] / 10 / 60 ).toFixed( 2 ) );
                     tps.push( ind_tps );
                     if ( block_info[ "tx_count" ] > max_tx_count ) max_tx_count = block_info[ "tx_count" ];
                     if ( block_info[ "tx_count" ] > 4200 ) bigger_than_7.push( [ ind_tps, `https://${source}/block/${hash}`, block_info[ "tx_count" ] ] );
