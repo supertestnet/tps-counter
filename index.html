@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, user-scalable=no">
+        <style>
+            * {
+                box-sizing: border-box;
+                font-size: 1.15rem;
+                font-family: Arial, sans-serif;
+            }
+            html {
+                max-width: 800px;
+                padding: 3rem 1rem;
+                margin: auto;
+                line-height: 1.25;
+                padding: 0;
+            }
+            body {
+                margin: 3rem 1rem;
+            }
+            h1 {
+                font-size: 2rem;
+            }
+            h2 {
+                font-size: 1.5rem;
+            }
+            input {
+                line-height: 1.25;
+                width: 100%;
+                height: 1.8rem;
+                font-size: 1.15rem;
+                border: 1px solid grey;
+            }
+            .hidden {
+                display: none !important;
+            }
+            @media screen and (max-width: 600px) {
+            }
+        </style>
+        <script>
+            var $ = document.querySelector.bind( document );
+            var $$ = document.querySelectorAll.bind( document );
+            var url_params = new URLSearchParams( window.location.search );
+            var url_keys = url_params.keys();
+            var $_GET = {}
+            for ( var key of url_keys ) $_GET[ key ] = url_params.get( key );
+        </script>
+        <script>
+            function getData( url ) {
+                return new Promise( async function( resolve, reject ) {
+                    function inner_get( url ) {
+                        var xhttp = new XMLHttpRequest();
+                        xhttp.open( "GET", url, true );
+                        xhttp.send();
+                        return xhttp;
+                    }
+                    var data = inner_get( url );
+                    data.onerror = function( e ) {
+                        resolve( "error" );
+                    }
+                    async function isResponseReady() {
+                        return new Promise( function( resolve2, reject ) {
+                            if ( !data.responseText || data.readyState != 4 ) {
+                                setTimeout( async function() {
+                                    var msg = await isResponseReady();
+                                    resolve2( msg );
+                                }, 1 );
+                            } else {
+                                resolve2( data.responseText );
+                            }
+                        });
+                    }
+                    var returnable = await isResponseReady();
+                    resolve( returnable );
+                });
+            }
+        </script>
+    </head>
+    <body>
+        <h1>TPS Counter</h1>
+        <p>TPS stands for transactions per second. This page counts info about the TPS counts of the most recent 144 bitcoin blocks (roughly the past 24 hours).</p>
+        <div class="loading">Loading <span class="cur_load">0</span> out of <span class="total_load"></span></div>
+        <div class="info hidden">
+            <p>Block with the most tps: <span class="most_tps"></span></p>
+            <p>Average tps in the past 24 hours: <span class="avg_tps"></span></p>
+            <p><span class="num_big"></span> blocks in the past 24 hours had more than 7 tps. Here is a list of their block hashes:</p>
+            <ol class="big_blocks"></ol>
+        </div>
+        <script>
+            var blocks_to_count = 144;
+            var findMax = arr => {
+                var index = 0;
+                var largest = arr[0];
+                for (var i = 0; i < arr.length; i++) {
+                    if (arr[i] > largest ) {
+                        index = i;
+                        largest = arr[i];
+                    }
+                }
+                return [ index, largest ];
+            }
+            var findAvg = arr => {
+                var avg = 0;
+                arr.forEach( num => avg = avg + num );
+                return Number( ( avg / arr.length ).toFixed( 2 ) );
+            }
+            (async () => {
+                var tps = [];
+                var bigger_than_7 = [];
+                var tx_nums = [];
+                var hashes = [];
+                var tip = await getData( "https://mempool.space/api/blocks/tip/height" );
+                tip = Number( tip );
+                //todo: change num to 144
+                var num = blocks_to_count;
+                $( '.total_load' ).innerText = num;
+                var i; for ( i=tip-num; i<tip; i++ ) {
+                    try {
+                        var hash = await getData( `https://mempool.space/api/block-height/${i}` );
+                    } catch (e) {
+                        var hash;
+                    }
+                    if ( !hash || hash == "error" ) continue;
+                    hashes.push( hash );
+                    var url = `https://mempool.space/api/block/${hash}`;
+                    try {
+                        var block_info = await getData( `https://mempool.space/api/block/${hash}` );
+                    } catch (e) {
+                        var block_info;
+                    }
+                    if ( !block_info ) continue;
+                    try {
+                        block_info = JSON.parse( block_info );
+                    } catch (e) {
+                        var stop = true;
+                    }
+                    if ( stop ) continue;
+                    tx_nums.push( block_info[ "tx_count" ] );
+                    var ind_tps = Math.round( block_info[ "tx_count" ] / 10 / 60 );
+                    tps.push( ind_tps );
+                    if ( block_info[ "tx_count" ] > 4200 ) bigger_than_7.push( [ ind_tps, `https://mempool.space/block/${hash}`, block_info[ "tx_count" ] ] );
+                    $( '.cur_load' ).innerText = num - ( tip - i - 1 );
+                    if ( num - ( tip - i - 1 ) === num ) {
+                        $( '.loading' ).classList.add( "hidden" );
+                        $( '.info' ).classList.remove( "hidden" );
+                    }
+                }
+                var max_tps_num = findMax( tps )[ 1 ];
+                var max_tps_blk = `https://mempool.space/block/${hashes[ findMax( tps )[ 0 ] ]}`;
+                $( '.most_tps' ).innerHTML = `<a href="${max_tps_blk}" target="_blank">This block</a> had ${max_tps_num} tps`;
+                $( '.avg_tps' ).innerText = `${findAvg( tps )} tps`;
+                $( '.num_big' ).innerText = bigger_than_7.length;
+                var html = ``;
+                bigger_than_7.forEach( blk => html = html + `<li><a href="${blk[ 1 ]}" target="_blank">${blk[ 0 ]} tps (${blk[ 2 ]} transactions)</a></li>` )
+                $( '.big_blocks' ).innerHTML = html;
+            })();
+        </script>
+    </body>
+</html>
