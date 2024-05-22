@@ -89,6 +89,7 @@
         </div>
         <script>
             var blocks_to_count = 144;
+            var source = "mempool.space" //alt: blockstream.info;
             var findMax = arr => {
                 var index = 0;
                 var largest = arr[0];
@@ -110,22 +111,22 @@
                 var bigger_than_7 = [];
                 var tx_nums = [];
                 var hashes = [];
-                var tip = await getData( "https://mempool.space/api/blocks/tip/height" );
+                var tip = await getData( `https://${source}/api/blocks/tip/height` );
                 tip = Number( tip );
                 //todo: change num to 144
                 var num = blocks_to_count;
                 $( '.total_load' ).innerText = num;
                 var i; for ( i=tip-num; i<tip; i++ ) {
                     try {
-                        var hash = await getData( `https://mempool.space/api/block-height/${i}` );
+                        var hash = await getData( `https://${source}/api/block-height/${i}` );
                     } catch (e) {
                         var hash;
                     }
                     if ( !hash || hash == "error" ) continue;
                     hashes.push( hash );
-                    var url = `https://mempool.space/api/block/${hash}`;
+                    var url = `https://${source}/api/block/${hash}`;
                     try {
-                        var block_info = await getData( `https://mempool.space/api/block/${hash}` );
+                        var block_info = await getData( `https://${source}/api/block/${hash}` );
                     } catch (e) {
                         var block_info;
                     }
@@ -139,7 +140,7 @@
                     tx_nums.push( block_info[ "tx_count" ] );
                     var ind_tps = Math.round( block_info[ "tx_count" ] / 10 / 60 );
                     tps.push( ind_tps );
-                    if ( block_info[ "tx_count" ] > 4200 ) bigger_than_7.push( [ ind_tps, `https://mempool.space/block/${hash}`, block_info[ "tx_count" ] ] );
+                    if ( block_info[ "tx_count" ] > 4200 ) bigger_than_7.push( [ ind_tps, `https://${source}/block/${hash}`, block_info[ "tx_count" ] ] );
                     $( '.cur_load' ).innerText = num - ( tip - i - 1 );
                     if ( num - ( tip - i - 1 ) === num ) {
                         $( '.loading' ).classList.add( "hidden" );
@@ -147,7 +148,7 @@
                     }
                 }
                 var max_tps_num = findMax( tps )[ 1 ];
-                var max_tps_blk = `https://mempool.space/block/${hashes[ findMax( tps )[ 0 ] ]}`;
+                var max_tps_blk = `https://${source}/block/${hashes[ findMax( tps )[ 0 ] ]}`;
                 $( '.most_tps' ).innerHTML = `<a href="${max_tps_blk}" target="_blank">This block</a> had ${max_tps_num} tps`;
                 $( '.avg_tps' ).innerText = `${findAvg( tps )} tps`;
                 $( '.num_big' ).innerText = bigger_than_7.length;
