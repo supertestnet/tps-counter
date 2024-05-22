@@ -87,6 +87,7 @@
             <p><span class="num_big"></span> blocks in the past 24 hours had more than 7 tps:</p>
             <ol class="big_blocks"></ol>
         </div>
+        <div class="source"><br><a href="https://github.com/supertestnet/tps-counter" target="_blank">Source code</a></div>
         <script>
             var blocks_to_count = 144;
             var source = "mempool.space" //alt: blockstream.info;
@@ -114,7 +115,6 @@
                 var hashes = [];
                 var tip = await getData( `https://${source}/api/blocks/tip/height` );
                 tip = Number( tip );
-                //todo: change num to 144
                 var num = blocks_to_count;
                 $( '.total_load' ).innerText = num;
                 var i; for ( i=tip-num; i<tip; i++ ) {
