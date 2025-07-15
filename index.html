@@ -3,6 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, user-scalable=no">
+        <title>Filter stats</title>
         <style>
             * {
                 box-sizing: border-box;
@@ -75,50 +76,40 @@
                     resolve( returnable );
                 });
             }
+            var waitSomeTime = num => new Promise( resolve => setTimeout( resolve, num ) );
         </script>
     </head>
     <body>
-        <h1>TPS Counter</h1>
-        <p>TPS stands for transactions per second. This page tracks the TPS counts of the most recent 144 bitcoin blocks (roughly the past 24 hours).</p>
-        <div class="loading">Loading <span class="cur_load">0</span> out of <span class="total_load"></span></div>
-        <div class="info hidden">
-            <p>Block with the most tps (last 24 hours): <span class="most_tps"></span></p>
-            <p>Block with the most tps (ever): <span class="most_tps"><a href="https://mempool.space/block/00000000000000001080e6de32add416cd6cda29f35ec9bce694fea4b964c7be" target="_blank">this block</a> had 20.39 tps (12,239 transactions)</span></p>
-            <p>Average tps in the past 24 hours: <span class="avg_tps"></span></p>
-            <p><span class="num_big"></span> blocks in the past 24 hours had more than 7 tps:</p>
-            <ol class="big_blocks"></ol>
+        <h1>Filter Stats</h1>
+        <p>Documenting the statistical effect of filters over time</p>
+        <hr>
+        <div class="loading">
+            <p>Loading most recent <span class="how_many_blocks">0</span> blocks</p>
+            <p><span class="cur_load">0</span> out of <span class="total_load">0</span> blocks loaded</p>
+            <p>Transactions in this block: <span class="tx_count"></span></p>
+            <p>Transactions loaded: <span class="txs_loaded"></span></p>
+            <p>Percent of lower-than-standard-fee txs: <span class="low_fee_percent">0.00</span>%</p>
         </div>
-        <div class="source"><br><a href="https://github.com/supertestnet/tps-counter" target="_blank">Source code</a></div>
+        <div class="block_info"></div>
+        <div class="source"><br><a href="https://github.com/supertestnet/filter-stats" target="_blank">Source code</a></div>
         <script>
             var blocks_to_count = 144;
+            var total_txs = 0;
+            var total_low_fee_txs = 0;
+            $( '.how_many_blocks' ).innerText = blocks_to_count;
+            $( '.total_load' ).innerText = blocks_to_count;
             var source = "mempool.space" //alt: blockstream.info;
-            var findMax = arr => {
-                var index = 0;
-                var largest = arr[0];
-                for (var i = 0; i < arr.length; i++) {
-                    if (arr[i] > largest ) {
-                        index = i;
-                        largest = arr[i];
-                    }
-                }
-                return [ index, largest ];
-            }
-            var findAvg = arr => {
-                var avg = 0;
-                arr.forEach( num => avg = avg + num );
-                return Number( ( avg / arr.length ).toFixed( 2 ) );
-            }
-            (async () => {
-                var tps = [];
-                var max_tx_count = 0;
-                var bigger_than_7 = [];
-                var tx_nums = [];
-                var hashes = [];
-                var num = blocks_to_count;
-                $( '.total_load' ).innerText = num;
+            var all_txs = [];
+            var hashes = [];
+            var blocks_i_am_loading = [];
+            var load = async () => {
                 var tip = await getData( `https://${source}/api/blocks/tip/height` );
                 tip = Number( tip );
-                var i; for ( i=tip-num; i<tip; i++ ) {
+                var i; for ( i=tip-blocks_to_count; i<tip; i++ ) {
+                    blocks_i_am_loading.push( i );
+                    var cur_load = blocks_to_count - ( tip - i - 1 );
+                    $( '.cur_load' ).innerText = cur_load;
+                    $( '.how_many_blocks' ).innerText = blocks_to_count;
                     try {
                         var hash = await getData( `https://${source}/api/block-height/${i}` );
                     } catch (e) {
@@ -127,10 +118,27 @@
                     if ( !hash || hash == "error" ) continue;
                     hashes.push( hash );
                     var url = `https://${source}/api/block/${hash}`;
+                    var txs_in_this_block = [];
                     try {
                         var block_info = await getData( `https://${source}/api/block/${hash}` );
+                        var tx_count = JSON.parse( block_info ).tx_count;
+                        $( '.tx_count' ).innerText = tx_count;
+                        var index = 0;
+                        var loop = async() => {
+                            await waitSomeTime( 200 );
+                            $( '.txs_loaded' ).innerText = Math.min( index + 25, tx_count );
+                            var tx_url = `https://${source}/api/block/${hash}/txs/${index}`;
+                            var txs = await getData( tx_url );
+                            txs = JSON.parse( txs );
+                            if ( txs.length ) txs_in_this_block.push( ...txs );
+                            if ( index + 25 >= tx_count ) return txs_in_this_block;
+                            index = index + 25;
+                            return loop();
+                        }
+                        await loop();
+                        all_txs.push( txs_in_this_block );
                     } catch (e) {
-                        var block_info;
+                        var block_info = null;
                     }
                     if ( !block_info ) continue;
                     try {
@@ -139,26 +147,44 @@
                         var stop = true;
                     }
                     if ( stop ) continue;
-                    tx_nums.push( block_info[ "tx_count" ] );
-                    var ind_tps = Number( ( block_info[ "tx_count" ] / 10 / 60 ).toFixed( 2 ) );
-                    tps.push( ind_tps );
-                    if ( block_info[ "tx_count" ] > max_tx_count ) max_tx_count = block_info[ "tx_count" ];
-                    if ( block_info[ "tx_count" ] > 4204 ) bigger_than_7.push( [ ind_tps, `https://${source}/block/${hash}`, block_info[ "tx_count" ] ] );
-                    $( '.cur_load' ).innerText = num - ( tip - i - 1 );
-                    if ( num - ( tip - i - 1 ) === num ) {
-                        $( '.loading' ).classList.add( "hidden" );
-                        $( '.info' ).classList.remove( "hidden" );
+                    total_txs = total_txs + txs_in_this_block.length;
+                    var normal_fee_txs = 0;
+                    var low_fee_txs = [];
+                    txs_in_this_block.forEach( ( tx, idx ) => {
+                        if ( !idx ) return;
+                        var fee_per_vbyte = Number( ( tx.fee / ( tx.weight / 4 ) ).toFixed( 2 ) );
+                        if ( fee_per_vbyte >= 1 ) normal_fee_txs = normal_fee_txs + 1;
+                        else low_fee_txs.push( tx.txid );
+                    });
+                    var html = `
+                        <hr>
+                        <h2>Info about block ${i}</h2>
+                        <p>Number of transactions: ${tx_count}</p>
+                        <p>Transactions that pay above 1 sat per byte: ${normal_fee_txs + 1}</p>
+                        <p>List of transactions that paid less than that:</p>
+                        <p class="none">None</p>
+                        <ul class="list hidden"></ul>
+                    `;
+                    var div = document.createElement( "div" );
+                    div.classList.add( "info" );
+                    div.innerHTML = html;
+                    if ( low_fee_txs.length ) {
+                        total_low_fee_txs = total_low_fee_txs + low_fee_txs.length;
+                        div.getElementsByClassName( "none" )[ 0 ].classList.add( "hidden" );
+                        div.getElementsByClassName( "list" )[ 0 ].classList.remove( "hidden" );
+                        var j; for ( j=0; j<low_fee_txs.length; j++ ) {
+                            var li = document.createElement( "li" );
+                            var url = `https://${source}/tx/${low_fee_txs[ j ]}`;
+                            li.innerHTML = `<a href="${url}" target="_blank">${low_fee_txs[ j ]}</a>`;
+                            div.getElementsByClassName( "list" )[ 0 ].append( li );
+                        }
+                        div.getElementsByClassName( "list" )[ 0 ].classList.remove( "hidden" );
                     }
+                    $( '.low_fee_percent' ).innerText = Number( ( ( total_low_fee_txs / total_txs ) * 100 ).toFixed( 2 ) );
+                    $( '.block_info' ).append( div );
                 }
-                var max_tps_num = findMax( tps )[ 1 ];
-                var max_tps_blk = `https://${source}/block/${hashes[ findMax( tps )[ 0 ] ]}`;
-                $( '.most_tps' ).innerHTML = `<a href="${max_tps_blk}" target="_blank">this block</a> had ${max_tps_num} tps (${max_tx_count} transactions)`;
-                $( '.avg_tps' ).innerText = `${findAvg( tps )} tps`;
-                $( '.num_big' ).innerText = bigger_than_7.length;
-                var html = ``;
-                bigger_than_7.forEach( blk => html = html + `<li><a href="${blk[ 1 ]}" target="_blank">${blk[ 0 ]} tps (${blk[ 2 ]} transactions)</a></li>` )
-                $( '.big_blocks' ).innerHTML = html;
-            })();
+            }
+            load();
         </script>
     </body>
-</html>
+</html> 
